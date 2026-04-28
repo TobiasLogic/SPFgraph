@@ -1,0 +1,12 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+*.pt
+*.pth
+*.gguf
+*.bin
+__pycache__/
+*.pyc
+.venv/
+.env
+.zeroshot/

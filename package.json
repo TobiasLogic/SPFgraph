@@ -1,0 +1,48 @@
+{
+  "name": "@tobiascantcode/SPFgraph",
+  "version": "0.1.0",
+  "description": "Run LLMs locally in your terminal. Supports custom .pt GPT-2 decoder checkpoints and GGUF models, with a live dashboard of throughput, VRAM, and chat.",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "bin": {
+    "zeroshot-run": "bin/zeroshot-run.js",
+    "SPH": "bin/zeroshot-run.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "python",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node bin/zeroshot-run.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "llm",
+    "gpt",
+    "gpt2",
+    "gguf",
+    "ollama",
+    "terminal",
+    "cli",
+    "inference",
+    "torch",
+    "pytorch"
+  ],
+  "author": "tobiascantcode",
+  "license": "MIT",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "node-llama-cpp": "^2.8.0"
+  },
+  "optionalDependencies": {
+    "node-llama-cpp": "^2.8.0"
+  }
+}

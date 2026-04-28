@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast, sys; ast.parse\\(open\\('python/inference.py', encoding='utf-8'\\).read\\(\\)\\); print\\('ok'\\)\")",
+      "Bash(python -c \"import torch, tiktoken; print\\('torch', torch.__version__, 'cuda', torch.cuda.is_available\\(\\)\\); print\\('tiktoken', tiktoken.__version__\\)\")",
+      "Bash(node bin/zeroshot-run.js --version)",
+      "Bash(node bin/zeroshot-run.js --help)",
+      "Bash(node bin/zeroshot-run.js register ckpt_mid ckpt_mid_final.pt)",
+      "Bash(node bin/zeroshot-run.js list)",
+      "Bash(node bin/zeroshot-run.js bench ckpt_mid --tokens 32 --prompt \"The quick brown fox\")",
+      "Bash(python -c ' *)",
+      "Bash(node --check bin/zeroshot-run.js)",
+      "Bash(python python/inference.py --checkpoint ckpt_mid_final.pt --prompt \"The quick brown fox\" --max_tokens 16 --temperature 0.8 --fp16)",
+      "Bash(python -u python/inference.py --checkpoint ckpt_mid_final.pt --prompt \"The quick brown fox\" --max_tokens 16 --temperature 0.8 --fp16)",
+      "Bash(python -u -c ' *)",
+      "Bash(nvidia-smi --query-gpu=name,memory.total,memory.free,memory.used --format=csv)",
+      "Bash(tasklist /FI \"IMAGENAME eq python.exe\")",
+      "PowerShell(Stop-Process -Force)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('python/inference.py', encoding='utf-8'\\).read\\(\\)\\); print\\('ok'\\)\")",
+      "Bash(node bin/zeroshot-run.js bench ckpt_mid --tokens 128 --prompt \"Once upon a time,\")",
+      "Bash(python -u python/inference.py --checkpoint ckpt_mid_final.pt --prompt \"Once upon a time, in a small village\" --max_tokens 60 --temperature 0.8 --top_k 40 --fp16)"
+    ]
+  }
+}
