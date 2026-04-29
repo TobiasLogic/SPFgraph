@@ -10,3 +10,11 @@ __pycache__/
 .venv/
 .env
 .zeroshot/
+
+# npm pack artifacts
+*.tgz
+
+# local debug helpers
+out.txt
+test_*.js
+debug.log
