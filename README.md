@@ -1,9 +1,21 @@
 # @tobiascantcode/spfgraph — `zeroshot-run` / `sph`
 
+[![npm](https://img.shields.io/npm/v/@tobiascantcode/spfgraph.svg)](https://www.npmjs.com/package/@tobiascantcode/spfgraph)
+[![license](https://img.shields.io/npm/l/@tobiascantcode/spfgraph.svg)](https://github.com/TobiasLogic/SPFgraph/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/source-github-black.svg)](https://github.com/TobiasLogic/SPFgraph)
+
 Run LLMs locally in your terminal. Like Ollama, but with first-class support for
 custom `.pt` GPT-2 decoder checkpoints. GGUF models work too via
 `node-llama-cpp` (optional). The dashboard shows tokens/sec and VRAM in
 real time while you chat.
+
+> **Status:** early (`0.1.x`). The `.pt` path is the most exercised; GGUF
+> support depends on `node-llama-cpp` building on your platform. Bug reports
+> and PRs welcome — see [Issues](https://github.com/TobiasLogic/SPFgraph/issues).
+>
+> **Tested on:** Windows 11 (PyTorch 2.10 + CUDA 12.6, Python 3.10).
+> macOS and Linux are expected to work but currently unverified — please
+> open an issue if something's off.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -11,10 +23,6 @@ real time while you chat.
 │ VRAM: 1.0GB / 4.0GB | Speed: 79.0 tok/s | Ctx: 21/2048  │
 ├──────────────────────────┬──────────────────────────────┤
 │ tok/s over time          │ VRAM (MB) over time          │
-│ ╭──────────────────╮     │ ╭──────────────────╮         │
-│ │     ╱╲    ╱╲     │     │ │  ____________    │         │
-│ │ ╱╲ ╱  ╲  ╱  ╲  ╱╲│     │ │ ╱             ╲  │         │
-│ ╰──────────────────╯     │ ╰──────────────────╯         │
 ├──────────────────────────┴──────────────────────────────┤
 │ chat ↓                                                  │
 │ you   The quick brown fox                               │
@@ -38,14 +46,17 @@ For **`.pt` checkpoints** (the main path) you need Python with `torch` and
 `tiktoken`:
 
 ```bash
-pip install torch tiktoken
+pip install tiktoken
+# For torch, use the install command from https://pytorch.org/get-started/locally/
+# that matches your CUDA version (or CPU-only). A bare `pip install torch` may
+# pull a build that doesn't match your driver.
 ```
 
 For **`.gguf` models** the optional `node-llama-cpp` dependency must build
 successfully. On Windows that needs Visual Studio Build Tools + cmake +
-Python; on macOS/Linux it's usually automatic. If the build fails the install
-still succeeds — only the GGUF backend is unavailable, the `.pt` path keeps
-working.
+Python; on macOS/Linux it's usually automatic. If the build fails the npm
+install still succeeds — only the GGUF backend is unavailable, the `.pt`
+path keeps working.
 
 ## Quickstart
 
@@ -76,8 +87,16 @@ sph bench <model>           Run a quick throughput benchmark
 sph register <name> <path>  Add a model to the local registry
 ```
 
-`load` flags: `--temperature` `--top-k` `--max-tokens` `--ctx` `--cpu` `--fp16`
-`--python <path>`
+`load` flags:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--temperature <n>` | `0.8` | sampling temperature |
+| `--top-k <n>` | `40` | top-k sampling |
+| `--max-tokens <n>` | `512` | max tokens per response |
+| `--ctx <n>` | model's `block_size` | override context window |
+| `--cpu` | off | force CPU inference (otherwise CUDA fp16 is used when available) |
+| `--python <path>` | `python` | Python executable (also via `ZEROSHOT_PYTHON` env var) |
 
 `bench` flags: `--tokens` `--prompt` `--python <path>`
 
@@ -111,19 +130,22 @@ The bundled `python/inference.py` expects checkpoints saved as:
 
 ```python
 torch.save({'model': model.state_dict(), 'config': asdict(cfg)}, path)
-# or, equivalently, with the older key name:
+# either key works; `config` and `model_config` are both accepted:
 torch.save({'model': model.state_dict(), 'model_config': asdict(cfg)}, path)
 ```
 
-Required `config` keys: `n_layer`, `n_head`, `n_embd`, `block_size`,
-`vocab_size`, `bias`. Architecture is GPT-2 decoder-only with weight tying
-and Flash Attention through `F.scaled_dot_product_attention`. Tokenizer is
-`tiktoken`'s GPT-2 encoding (vocab padded to 50304).
+Required `config` keys: `n_layer`, `n_head`, `n_embd`. Optional keys:
+`block_size` (default `1024`), `vocab_size` (default `50304`), `bias`
+(default `True`).
+
+Architecture is GPT-2 decoder-only with weight tying and Flash Attention
+through `F.scaled_dot_product_attention`. Tokenizer is `tiktoken`'s GPT-2
+encoding (vocab padded to 50304).
 
 ## How loading works
 
-For a 600M-parameter model loaded from a 2 GB checkpoint, the loader is
-designed to fit on a 4 GB GPU:
+The loader is designed to fit large models on small GPUs (e.g., a 600M model
+on a 4 GB card):
 
 1. `torch.load(..., mmap=True)` — the checkpoint is memory-mapped, not
    read entirely into RAM (PyTorch ≥ 2.1).
@@ -133,10 +155,11 @@ designed to fit on a 4 GB GPU:
 3. `model.to_empty(device='cuda')` allocates fresh fp16 storage directly on
    the GPU.
 4. `load_state_dict(...)` copies tensors **one at a time**, casting fp32 →
-   fp16 in flight. Peak temporary memory ≈ one tensor (~125 MB for the wte).
+   fp16 in flight. Peak temporary memory ≈ one tensor.
 
-Peak footprint: **~2.4 GB CPU RAM** (mmap'd state dict) + **~1.2 GB VRAM**
-(fp16 model) for a 600M-param model.
+For a 600M-parameter model the peak footprint works out to about 2.4 GB CPU
+RAM (mmap'd state dict) plus 1.2 GB VRAM (fp16 model). YMMV depending on
+model size and `n_embd`.
 
 ## CUDA OOM auto-fallback
 
@@ -150,8 +173,7 @@ materializing on cuda...
   falling back to CPU (re-run with --cpu to skip this attempt next time)
 ```
 
-CPU is much slower (~4 tok/s vs. ~79 tok/s on a typical 4 GB GPU) but it
-always works.
+CPU is much slower than GPU but always works.
 
 ## Bridge protocol
 
@@ -179,7 +201,8 @@ surface so the dashboard is backend-agnostic.
 
 ## Config
 
-`~/.zeroshot/config.json` — model registry and defaults:
+`~/.zeroshot/config.json` — model registry and defaults. Edit it directly to
+change defaults or scan paths:
 
 ```json
 {
@@ -222,25 +245,20 @@ bin/
 
 ## Troubleshooting
 
-**`E404` on `npm publish`** — npm's confusing way of saying "you don't have
-permission to publish to this scope." Run `npm whoami`; if it shows the
-wrong user, run `npm logout && npm login` and retry. Add `--otp=123456` if
-2FA is on.
-
-**`node-llama-cpp` install warnings on Windows** — these are benign as of
-v0.1.1. The package is in `optionalDependencies`, so a build failure is just
-a warning. Only the GGUF backend is affected; `.pt` loading goes through
-Python and works regardless.
+**`node-llama-cpp` install warnings on Windows** — benign. The package is in
+`optionalDependencies`, so a build failure is just a warning. Only the GGUF
+backend is affected; `.pt` loading goes through Python and works regardless.
 
 **`python exited before ready (code=3221225477)`** — that's `0xC0000005`,
-a Windows access violation. It used to mean torch ran out of CPU RAM during
-default model initialization for very large models on systems with ≤8 GB RAM.
-Fixed in v0.1.1 by switching to meta-device construction. If you still hit
-it, run with `--cpu` and report the stderr.
+a Windows access violation, historically caused by torch running out of CPU
+RAM during default model initialization for large models on systems with
+≤8 GB RAM. The current loader uses meta-device construction to avoid that
+spike. If you still hit it, run with `--cpu` and report the stderr in an
+[issue](https://github.com/TobiasLogic/SPFgraph/issues).
 
-**`CUDA out of memory`** — the loader auto-retries on CPU now. To skip the
-CUDA attempt entirely, pass `--cpu`. To free GPU memory, close other apps
-that use the GPU (browsers with hardware acceleration, Discord, OBS, other
+**`CUDA out of memory`** — the loader auto-retries on CPU. To skip the CUDA
+attempt entirely, pass `--cpu`. To free GPU memory, close other apps that
+use the GPU (browsers with hardware acceleration, Discord, OBS, other
 training jobs).
 
 **Scrolling feels dead** — try `Ctrl+T` / `Ctrl+U` (one-line scroll) before
@@ -249,11 +267,23 @@ applications. If even Ctrl+T does nothing, run with `ZEROSHOT_DEBUG=1` and
 check `~/.zeroshot/debug.log` to see whether the terminal is sending the
 event at all.
 
-**`sph: command not found` after install** — fixed in v0.1.1 (the published
-v0.1.0 was missing the bin shebang and had a duplicate `node-llama-cpp`
-declaration that aborted install before the bin shims were created).
-`npm i -g @tobiascantcode/spfgraph@latest` to get the fix.
+**`sph: command not found` after install** — make sure you installed with
+`-g` and that npm's global bin directory is on your PATH. `npm config get prefix`
+shows where global bins go.
+
+**`E404` on `npm publish`** (developers only) — npm's confusing way of
+saying "you don't have permission to publish to this scope." Run
+`npm whoami`; if it shows the wrong user, run `npm logout && npm login`
+and retry. Add `--otp=123456` if 2FA is on.
+
+## Contributing
+
+Source: [github.com/TobiasLogic/SPFgraph](https://github.com/TobiasLogic/SPFgraph).
+Issues and PRs welcome — especially:
+- Reports from macOS or Linux (currently unverified)
+- GGUF / `node-llama-cpp` interactions on different platforms
+- Other GPT-style checkpoint formats worth supporting
 
 ## License
 
-MIT
+[MIT](https://github.com/TobiasLogic/SPFgraph/blob/main/LICENSE)

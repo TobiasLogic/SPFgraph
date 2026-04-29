@@ -1,6 +1,6 @@
 {
   "name": "@tobiascantcode/spfgraph",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Run LLMs locally in your terminal. Supports custom .pt GPT-2 decoder checkpoints and GGUF models, with a live dashboard of throughput, VRAM, and chat.",
   "type": "commonjs",
   "main": "src/index.js",
@@ -12,7 +12,8 @@
     "bin",
     "src",
     "python",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "start": "node bin/zeroshot-run.js",
@@ -35,6 +36,14 @@
   ],
   "author": "tobiascantcode",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TobiasLogic/SPFgraph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TobiasLogic/SPFgraph/issues"
+  },
+  "homepage": "https://github.com/TobiasLogic/SPFgraph#readme",
   "dependencies": {
     "blessed": "^0.1.81",
     "blessed-contrib": "^4.11.0",
