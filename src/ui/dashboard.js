@@ -5,6 +5,7 @@ const contrib = require('blessed-contrib');
 const chalk = require('chalk');
 
 const HISTORY_POINTS = 60;
+const TICK_MS = 1000;
 
 function fmtParams(n) {
   if (!n) return '?';
@@ -39,6 +40,10 @@ class Dashboard {
     this._streaming = null;
 
     this._followBottom = true;
+
+    this._tokensSinceTick = 0;
+    this._lastTickAt = null;
+    this._ticker = null;
   }
 
   _scrollChatToBottom() {
@@ -73,6 +78,7 @@ class Dashboard {
       title: 'zeroshot-run',
       fullUnicode: true,
       autoPadding: true,
+      ignoreLocked: ['C-c'],
     });
     if (typeof this.screen.enableMouse === 'function') {
       this.screen.enableMouse();
@@ -89,7 +95,7 @@ class Dashboard {
     });
 
     this.tpsGraph = this.grid.set(2, 0, 5, 6, contrib.line, {
-      label: ' tok/s over time ',
+      label: ' tok/s — last 60s ',
       showLegend: false,
       wholeNumbersOnly: false,
       xLabelPadding: 3,
@@ -98,7 +104,7 @@ class Dashboard {
       style: { text: 'white', baseline: 'white' },
     });
     this.vramGraph = this.grid.set(2, 6, 5, 6, contrib.line, {
-      label: ' VRAM (MB) over time ',
+      label: ' VRAM (MB) — last 60s ',
       showLegend: false,
       wholeNumbersOnly: true,
       xLabelPadding: 3,
@@ -128,6 +134,8 @@ class Dashboard {
       mouse: true,
     });
 
+    this.input.readEditor = () => {};
+
     this._bindKeys();
     this._bindBackend();
 
@@ -142,12 +150,50 @@ class Dashboard {
     this.input.focus();
     this.screen.render();
 
+    this._ticker = setInterval(() => this._tick(), TICK_MS);
+
     return new Promise((resolve) => {
       this._exitResolver = resolve;
     });
   }
 
+  _tick() {
+    if (!this.screen) return;
+    const now = Date.now();
+    const dtSec = this._lastTickAt ? (now - this._lastTickAt) / 1000 : TICK_MS / 1000;
+    this._lastTickAt = now;
+
+    const tps = dtSec > 0 ? this._tokensSinceTick / dtSec : 0;
+    this._tokensSinceTick = 0;
+    this.lastStats.tokens_per_sec = tps;
+
+    this.tpsHistory.push(tps);
+    this.vramHistory.push(this.lastStats.vram_used_mb || 0);
+    if (this.tpsHistory.length > HISTORY_POINTS) this.tpsHistory.shift();
+    if (this.vramHistory.length > HISTORY_POINTS) this.vramHistory.shift();
+
+    if (!this.generating && typeof this.backend.requestStats === 'function') {
+      try {
+        this.backend.requestStats();
+      } catch {}
+    }
+
+    this._renderHeader();
+    this._renderGraphs();
+    this.screen.render();
+  }
+
+  _ensureInputFocus() {
+    setImmediate(() => {
+      if (!this.screen) return;
+      this.input.focus();
+      if (!this.input._reading) this.input.readInput();
+      this.screen.render();
+    });
+  }
+
   _bindKeys() {
+    this.screen.key('C-c', () => this.exit());
 
     const halfPage = () => {
       const h = typeof this.chat.height === 'number' ? this.chat.height : 10;
@@ -193,7 +239,7 @@ class Dashboard {
 
     this.input.on('cancel', () => {
       handleEscape();
-      this.input.readInput();
+      this._ensureInputFocus();
     });
 
     const dbg = (() => {
@@ -219,8 +265,6 @@ class Dashboard {
       if ((key.ctrl && key.name === 't') || (key.meta && key.name === 'up') || (key.shift && key.name === 'up') || key.name === 'f3') return scrollUp(1);
       if ((key.ctrl && key.name === 'u') || (key.meta && key.name === 'down') || (key.shift && key.name === 'down') || key.name === 'f4') return scrollDown(1);
 
-
-
       if (key.name === 'pageup') return scrollUp(halfPage());
       if (key.name === 'pagedown') return scrollDown(halfPage());
 
@@ -242,7 +286,7 @@ class Dashboard {
     this.input.on('submit', (value) => {
       const text = (value || '').trim();
       this.input.clearValue();
-      this.input.focus();
+      this._ensureInputFocus();
       this.screen.render();
       if (!text) return;
       if (text === '/quit' || text === '/exit') return this.exit();
@@ -251,6 +295,11 @@ class Dashboard {
         this._streaming = null;
         this._followBottom = true;
         this.chat.setScroll(0);
+        if (typeof this.backend.resetChat === 'function') {
+          try {
+            this.backend.resetChat();
+          } catch {}
+        }
         this._renderChat();
         this.screen.render();
         return;
@@ -301,11 +350,15 @@ class Dashboard {
       maxTokens: this.opts.maxTokens ?? 512,
       temperature: this.opts.temperature ?? 0.8,
       topK: this.opts.topK ?? 40,
+      topP: this.opts.topP ?? 1.0,
+      minP: this.opts.minP ?? 0.0,
+      repetitionPenalty: this.opts.repetitionPenalty ?? 1.0,
     });
     this.screen.render();
   }
 
   _onToken(text) {
+    this._tokensSinceTick += 1;
     if (!text) return;
     if (!this._streaming) this._streaming = { text: '' };
     this._streaming.text += sanitize(text);
@@ -314,19 +367,9 @@ class Dashboard {
   }
 
   _onStats(msg) {
-    this.lastStats = {
-      tokens_per_sec: msg.tokens_per_sec ?? 0,
-      vram_used_mb: msg.vram_used_mb ?? this.lastStats.vram_used_mb,
-      ctx_used: msg.ctx_used ?? this.lastStats.ctx_used,
-      ctx_max: msg.ctx_max ?? this.lastStats.ctx_max,
-    };
-    this.tpsHistory.push(this.lastStats.tokens_per_sec);
-    this.vramHistory.push(this.lastStats.vram_used_mb || 0);
-    if (this.tpsHistory.length > HISTORY_POINTS) this.tpsHistory.shift();
-    if (this.vramHistory.length > HISTORY_POINTS) this.vramHistory.shift();
-    this._renderHeader();
-    this._renderGraphs();
-    this.screen.render();
+    this.lastStats.vram_used_mb = msg.vram_used_mb ?? this.lastStats.vram_used_mb;
+    this.lastStats.ctx_used = msg.ctx_used ?? this.lastStats.ctx_used;
+    this.lastStats.ctx_max = msg.ctx_max ?? this.lastStats.ctx_max;
   }
 
   _onDone(msg) {
@@ -347,7 +390,7 @@ class Dashboard {
   _renderHeader() {
     const cfg = this.backend.config || {};
     const params = fmtParams(cfg.n_params);
-    const precision = cfg.fp16 ? 'fp16' : 'fp32';
+    const precision = cfg.backend === 'gguf' ? 'gguf' : cfg.fp16 ? 'fp16' : 'fp32';
     const device = this.backend.device || 'cpu';
     const vramTotal = this.backend.vramTotalMb;
     const vramUsed = this.lastStats.vram_used_mb;
@@ -367,16 +410,18 @@ class Dashboard {
   }
 
   _renderGraphs() {
+    const labels = (hist) => hist.map(() => ' ');
     if (this.tpsHistory.length >= 2) {
-      const xs = this.tpsHistory.map((_, i) => String(i));
+      this.tpsGraph.options.maxY = Math.max(10, ...this.tpsHistory) * 1.1;
       this.tpsGraph.setData([
-        { title: 'tok/s', style: { line: 'green' }, x: xs, y: this.tpsHistory.slice() },
+        { title: 'tok/s', style: { line: 'green' }, x: labels(this.tpsHistory), y: this.tpsHistory.slice() },
       ]);
     }
     if (this.vramHistory.length >= 2) {
-      const xs = this.vramHistory.map((_, i) => String(i));
+      this.vramGraph.options.maxY =
+        this.backend.vramTotalMb || Math.max(1, ...this.vramHistory) * 1.1;
       this.vramGraph.setData([
-        { title: 'VRAM', style: { line: 'magenta' }, x: xs, y: this.vramHistory.slice() },
+        { title: 'VRAM', style: { line: 'magenta' }, x: labels(this.vramHistory), y: this.vramHistory.slice() },
       ]);
     }
   }
@@ -416,10 +461,13 @@ class Dashboard {
   }
 
   exit() {
+    if (this._ticker) clearInterval(this._ticker);
     try {
       this.backend.shutdown();
     } catch {}
-    if (this.screen) this.screen.destroy();
+    try {
+      if (this.screen) this.screen.destroy();
+    } catch {}
     if (this._exitResolver) this._exitResolver();
     process.exit(0);
   }

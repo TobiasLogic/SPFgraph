@@ -69,7 +69,13 @@ function scan() {
   const seen = new Map();
   for (const [name, meta] of Object.entries(cfg.models)) {
     if (fs.existsSync(meta.path)) {
-      seen.set(meta.path, { name, ...meta, source: 'registry' });
+      let size = meta.size;
+      if (size == null) {
+        try {
+          size = fs.statSync(meta.path).size;
+        } catch {}
+      }
+      seen.set(meta.path, { name, ...meta, size, source: 'registry' });
     }
   }
   for (const dir of cfg.scan_paths) {

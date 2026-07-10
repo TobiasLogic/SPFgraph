@@ -25,6 +25,7 @@ async function loadCmd(modelArg, opts) {
   const modelLabel = path.basename(resolved, path.extname(resolved));
   let backend;
 
+  const chat = !opts.raw;
   if (kind === 'pt') {
     backend = new PythonBridge({
       checkpoint: resolved,
@@ -32,13 +33,16 @@ async function loadCmd(modelArg, opts) {
       fp16: opts.fp16 !== false && !opts.cpu,
       cpu: !!opts.cpu,
       ctx: opts.ctx,
+      tokenizer: opts.tokenizer,
+      arch: opts.arch,
+      chat,
     });
   } else {
     backend = new GgufBackend({
       modelPath: resolved,
-      ctx: opts.ctx || 2048,
-      temperature: opts.temperature,
-      topK: opts.topK,
+      ctx: opts.ctx,
+      cpu: !!opts.cpu,
+      chat,
     });
   }
 
@@ -58,7 +62,7 @@ async function loadCmd(modelArg, opts) {
   }, 100);
   const stopSpinner = () => {
     clearInterval(spinner);
-    if (process.stdout.isTTY) process.stdout.write('\r\x1b[K'); // clear spinner line
+    if (process.stdout.isTTY) process.stdout.write('\r\x1b[K');
   };
 
   process.stdout.write(`Loading ${modelLabel} (${kind})...\n`);
@@ -75,7 +79,9 @@ async function loadCmd(modelArg, opts) {
   }
   stopSpinner();
   backend.removeListener('stderr', onLoadStderr);
-  process.stdout.write(`Ready (${backend.device}, ${backend.config.n_params} params, ${((Date.now() - t0) / 1000).toFixed(1)}s)\n`);
+  const cfg = backend.config || {};
+  const paramsPart = cfg.n_params ? `, ${cfg.n_params} params` : '';
+  process.stdout.write(`Ready (${backend.device || kind}${paramsPart}, ${((Date.now() - t0) / 1000).toFixed(1)}s)\n`);
 
   const dash = new Dashboard({
     backend,
@@ -85,6 +91,9 @@ async function loadCmd(modelArg, opts) {
       maxTokens: opts.maxTokens,
       temperature: opts.temperature,
       topK: opts.topK,
+      topP: opts.topP,
+      minP: opts.minP,
+      repetitionPenalty: opts.repetitionPenalty,
     },
   });
   await dash.start();

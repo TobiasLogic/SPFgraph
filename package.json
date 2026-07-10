@@ -1,7 +1,7 @@
 {
   "name": "@tobiascantcode/spfgraph",
-  "version": "0.1.3",
-  "description": "Run LLMs locally in your terminal. Supports custom .pt GPT-2 decoder checkpoints and GGUF models, with a live dashboard of throughput, VRAM, and chat.",
+  "version": "0.1.6",
+  "description": "Run LLMs locally in your terminal. Supports custom .pt GPT-2 and LLaMA decoder checkpoints (auto-handles compact key naming, tied embeddings, and split-halves RoPE) plus GGUF models, with a live dashboard of throughput, VRAM, and chat.",
   "type": "commonjs",
   "main": "src/index.js",
   "bin": {
@@ -17,10 +17,11 @@
   ],
   "scripts": {
     "start": "node bin/zeroshot-run.js",
-    "test": "node --test test/"
+    "test": "node --test",
+    "test:tui": "uv run --with pyte python3 scripts/tui_regression.py"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "keywords": [
     "llm",
@@ -51,6 +52,6 @@
     "commander": "^11.1.0"
   },
   "optionalDependencies": {
-    "node-llama-cpp": "^2.8.0"
+    "node-llama-cpp": "^3.19.0"
   }
 }

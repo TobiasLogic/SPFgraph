@@ -6,6 +6,8 @@ const { EventEmitter } = require('events');
 
 const SCRIPT = path.resolve(__dirname, '..', '..', 'python', 'inference.py');
 
+const CHAT_STOP_MARKERS = ['\nUser:', '\nAssistant:'];
+
 class PythonBridge extends EventEmitter {
   constructor(opts) {
     super();
@@ -14,6 +16,9 @@ class PythonBridge extends EventEmitter {
     this.fp16 = opts.fp16 !== false;
     this.cpu = !!opts.cpu;
     this.ctx = opts.ctx;
+    this.tokenizer = opts.tokenizer;
+    this.arch = opts.arch;
+    this.chat = !!opts.chat;
     this.proc = null;
     this.ready = false;
     this.config = null;
@@ -21,6 +26,33 @@ class PythonBridge extends EventEmitter {
     this.vramTotalMb = null;
     this._stdoutBuf = '';
     this._stderrBuf = '';
+    this._history = [];
+    this._pending = null;
+    this._softStopped = false;
+
+    if (this.chat) {
+      this.on('token', (msg) => {
+        if (this._pending == null) return;
+        this._pending += msg.text || '';
+        if (!this._softStopped && CHAT_STOP_MARKERS.some((m) => this._pending.includes(m))) {
+          this._softStopped = true;
+          this.stop();
+        }
+      });
+      this.on('done', () => {
+        if (this._pending == null) return;
+        let text = this._pending;
+        for (const m of CHAT_STOP_MARKERS) {
+          const i = text.indexOf(m);
+          if (i !== -1) text = text.slice(0, i);
+        }
+        this._history.push({ role: 'assistant', text: text.trim() });
+        this._pending = null;
+      });
+      this.on('error', () => {
+        this._pending = null;
+      });
+    }
   }
 
   start() {
@@ -28,6 +60,8 @@ class PythonBridge extends EventEmitter {
     if (this.fp16) args.push('--fp16');
     if (this.cpu) args.push('--cpu');
     if (this.ctx) args.push('--ctx', String(this.ctx));
+    if (this.tokenizer) args.push('--tokenizer', this.tokenizer);
+    if (this.arch) args.push('--arch', this.arch);
 
     this.proc = spawn(this.python, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -47,8 +81,17 @@ class PythonBridge extends EventEmitter {
     this.proc.stderr.on('data', (chunk) => this._onStderr(chunk));
 
     this.proc.on('error', (err) => this.emit('error', err));
+
+    const killChild = () => {
+      try {
+        if (this.proc && !this.proc.killed) this.proc.kill('SIGKILL');
+      } catch {}
+    };
+    process.once('exit', killChild);
+
     this.proc.on('exit', (code, signal) => {
       this.ready = false;
+      process.removeListener('exit', killChild);
       this.emit('exit', { code, signal });
     });
 
@@ -133,19 +176,56 @@ class PythonBridge extends EventEmitter {
     this.proc.stdin.write(JSON.stringify(obj) + '\n');
   }
 
-  generate({ prompt, maxTokens = 256, temperature = 0.8, topK = 40 }) {
+  generate({
+    prompt,
+    maxTokens = 256,
+    temperature = 0.8,
+    topK = 40,
+    topP = 1.0,
+    minP = 0.0,
+    repetitionPenalty = 1.0,
+  }) {
+    let fullPrompt = prompt;
+    if (this.chat) {
+      const parts = [];
+      for (const m of this._history) {
+        parts.push(`${m.role === 'user' ? 'User' : 'Assistant'}: ${m.text}`);
+      }
+      parts.push(`User: ${prompt}`);
+      parts.push('Assistant:');
+      fullPrompt = parts.join('\n');
+      this._history.push({ role: 'user', text: prompt });
+      this._pending = '';
+      this._softStopped = false;
+    }
     this.send({
       cmd: 'generate',
-      prompt,
+      prompt: fullPrompt,
       max_tokens: maxTokens,
       temperature,
       top_k: topK,
+      top_p: topP,
+      min_p: minP,
+      repetition_penalty: repetitionPenalty,
     });
+  }
+
+  resetChat() {
+    this._history = [];
+    this._pending = null;
+    this._softStopped = false;
   }
 
   stop() {
     try {
       this.send({ cmd: 'stop' });
+    } catch {}
+  }
+
+  requestStats() {
+    if (!this.ready) return;
+    try {
+      this.send({ cmd: 'stats' });
     } catch {}
   }
 

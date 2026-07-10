@@ -9,7 +9,11 @@ const pkg = require('../package.json');
 const loadCmd = require('../src/commands/load');
 const listCmd = require('../src/commands/list');
 const benchCmd = require('../src/commands/bench');
+const serveCmd = require('../src/commands/serve');
 const registry = require('../src/models/registry');
+
+const cfgDefaults = registry.read().defaults || {};
+const defaultPython = process.env.ZEROSHOT_PYTHON || cfgDefaults.python || 'python';
 
 const toInt = (v) => {
   const n = parseInt(v, 10);
@@ -33,13 +37,19 @@ program
   .command('load')
   .description('Load a model and start the interactive REPL dashboard')
   .argument('<model>', 'Path to a .pt checkpoint or .gguf file, or a name from the registry')
-  .option('-t, --temperature <n>', 'Sampling temperature', toFloat, 0.8)
-  .option('-k, --top-k <n>', 'Top-k sampling', toInt, 40)
-  .option('-m, --max-tokens <n>', 'Max tokens per response', toInt, 512)
+  .option('-t, --temperature <n>', 'Sampling temperature', toFloat, cfgDefaults.temperature ?? 0.8)
+  .option('-k, --top-k <n>', 'Top-k sampling', toInt, cfgDefaults.top_k ?? 40)
+  .option('-m, --max-tokens <n>', 'Max tokens per response', toInt, cfgDefaults.max_tokens ?? 512)
+  .option('-p, --top-p <n>', 'Top-p (nucleus) sampling', toFloat, cfgDefaults.top_p ?? 1.0)
+  .option('--min-p <n>', 'Min-p sampling', toFloat, cfgDefaults.min_p ?? 0.0)
+  .option('--repetition-penalty <n>', 'Repetition penalty', toFloat, cfgDefaults.repetition_penalty ?? 1.0)
   .option('--ctx <n>', 'Context window override', toInt)
   .option('--fp16', 'Use fp16 weights (default for CUDA)', true)
   .option('--cpu', 'Force CPU inference')
-  .option('--python <path>', 'Python executable', process.env.ZEROSHOT_PYTHON || 'python')
+  .option('--raw', 'Raw completion mode: no chat template, no conversation history')
+  .option('--python <path>', 'Python executable', defaultPython)
+  .option('--tokenizer <path>', 'Path to tokenizer.json')
+  .option('--arch <name>', 'Architecture override (gpt2, llama)')
   .action((model, opts) => loadCmd(model, opts));
 
 program
@@ -54,8 +64,22 @@ program
   .argument('<model>', 'Model path or name')
   .option('-n, --tokens <n>', 'Tokens to generate for throughput test', toInt, 256)
   .option('--prompt <text>', 'Prompt to use', 'The quick brown fox')
-  .option('--python <path>', 'Python executable', process.env.ZEROSHOT_PYTHON || 'python')
+  .option('--python <path>', 'Python executable', defaultPython)
   .action((model, opts) => benchCmd(model, opts));
+
+program
+  .command('serve')
+  .description('Start an OpenAI-compatible HTTP server')
+  .argument('<model>', 'Path to a .pt checkpoint or .gguf file, or a name from the registry')
+  .option('--port <n>', 'Port to listen on', toInt, 11434)
+  .option('--host <host>', 'Host to listen on', '127.0.0.1')
+  .option('--ctx <n>', 'Context window override', toInt)
+  .option('--fp16', 'Use fp16 weights (default for CUDA)', true)
+  .option('--cpu', 'Force CPU inference')
+  .option('--python <path>', 'Python executable', defaultPython)
+  .option('--tokenizer <path>', 'Path to tokenizer.json')
+  .option('--arch <name>', 'Architecture override (gpt2, llama)')
+  .action((model, opts) => serveCmd(model, opts));
 
 program
   .command('register')
