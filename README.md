@@ -380,7 +380,7 @@ and retry. Add `--otp=123456` if 2FA is on.
 
 Source: [github.com/TobiasLogic/SPFgraph](https://github.com/TobiasLogic/SPFgraph).
 Issues and PRs welcome — especially:
-- Reports from macOS or Linux (currently unverified)
+- Reports from macOS (currently unverified; Windows and Linux are verified)
 - GGUF / `node-llama-cpp` interactions on different platforms
 - Other GPT-style checkpoint formats worth supporting
 
