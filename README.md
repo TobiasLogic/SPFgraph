@@ -34,6 +34,46 @@ so any client that speaks the OpenAI API works out of the box.
 └─────────────────────────────────────────────────────────┘
 ```
 
+## Features
+
+- **Two backends, one dashboard.** Custom `.pt` GPT-2 / LLaMA decoder
+  checkpoints run through PyTorch; `.gguf` models run through `node-llama-cpp`.
+  Chat, sampling, the graphs, and the OpenAI server behave the same either way.
+- **Live dashboard.** Real-time tokens/sec and VRAM graphs — one point per
+  second over a rolling 60-second window — plus a header with device, params,
+  and context usage, and a scrollable chat pane. Keeps updating while idle.
+- **Chat by default.** Conversation history is fed back each turn, using the
+  model's chat template (GGUF) or a `User:`/`Assistant:` transcript (`.pt`).
+  `--raw` switches to single-shot completion; `/clear` wipes the memory.
+- **OpenAI-compatible server.** `sph serve` speaks the chat-completions API
+  (streaming and non-streaming), so LangChain, the `openai` SDK, Open WebUI,
+  and friends work against a local model unchanged.
+- **Full sampling control.** temperature, top-k, top-p, min-p, repetition
+  penalty, and max-tokens — as CLI flags, config defaults, or per-request.
+- **Cancel mid-generation.** Esc stops a running generation immediately on
+  both backends.
+- **Throughput benchmark.** `sph bench` reports tokens/sec and peak VRAM with
+  no TUI.
+- **Model registry.** Register models by name, or drop them into
+  `~/.zeroshot/models/` for auto-discovery via `sph list`.
+- **Custom tokenizers.** Defaults to tiktoken's GPT-2 encoding; pass any
+  Hugging Face `tokenizer.json` with `--tokenizer`.
+- **Fits big models on small GPUs.** `.pt` loading uses meta-device
+  construction, mmap'd checkpoints, and fp16 streaming, with automatic
+  fallback to CPU on CUDA OOM.
+
+## Support
+
+| Area | Supported |
+|---|---|
+| **OS** | Windows and Linux (verified); macOS (expected, unverified) |
+| **Node.js** | ≥ 20 (required by `node-llama-cpp` v3) |
+| **`.pt` checkpoints** | GPT-2 and LLaMA decoder architectures, auto-detected (`.pt` / `.pth` / `.ckpt`) |
+| **GGUF models** | any architecture `node-llama-cpp` supports — Llama 3, Qwen2.5, Phi-3.5, Mistral, Gemma, … (`.gguf`) |
+| **GPU** | CUDA fp16 for `.pt`; llama.cpp GPU offload (CUDA / Vulkan / Metal, prebuilt) for GGUF; CPU works for both |
+| **`.pt` runtime** | Python 3 with `torch` + `tiktoken` |
+| **Tokenizers** | tiktoken GPT-2 (default) or any Hugging Face `tokenizer.json` |
+
 ## Install
 
 ```bash
