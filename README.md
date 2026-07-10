@@ -91,6 +91,18 @@ npm i -g "github:TobiasLogic/SPFgraph#v0.1.6"  # a specific release tag
 
 Either way you get two equivalent commands: `zeroshot-run` and `sph`.
 
+> **`EACCES` / permission denied on install?** Your npm global prefix is a
+> system directory (e.g. `/usr` on Arch/Linux). Don't `sudo` into it — point
+> npm at a user-owned prefix that's on your `PATH`:
+>
+> ```bash
+> npm config set prefix ~/.local          # make sure ~/.local/bin is on PATH
+> npm i -g "github:TobiasLogic/SPFgraph#v0.1.6"
+> ```
+>
+> Or, without changing config, add `--prefix ~/.local` to a single install
+> command. (A Node version manager like `nvm`/`fnm` avoids this entirely.)
+
 ### Prerequisites
 
 For **`.pt` checkpoints** (the main path) you need Python with `torch` and
