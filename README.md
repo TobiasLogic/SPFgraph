@@ -76,11 +76,20 @@ so any client that speaks the OpenAI API works out of the box.
 
 ## Install
 
+From npm:
+
 ```bash
 npm i -g @tobiascantcode/spfgraph
 ```
 
-That gives you two equivalent commands: `zeroshot-run` and `sph`.
+Or straight from GitHub — no npm publish needed:
+
+```bash
+npm i -g "github:TobiasLogic/SPFgraph"         # latest main
+npm i -g "github:TobiasLogic/SPFgraph#v0.1.6"  # a specific release tag
+```
+
+Either way you get two equivalent commands: `zeroshot-run` and `sph`.
 
 ### Prerequisites
 
