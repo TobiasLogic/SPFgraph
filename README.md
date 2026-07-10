@@ -5,10 +5,10 @@
 [![GitHub](https://img.shields.io/badge/source-github-black.svg)](https://github.com/TobiasLogic/SPFgraph)
 
 Run LLMs locally in your terminal. Like Ollama, but with first-class support for
-custom `.pt` GPT-2, LLaMA, and Phi checkpoints. GGUF models work too via
-`node-llama-cpp` (optional). Ships a live terminal dashboard (tokens/sec + VRAM
-in real time) and an OpenAI-compatible HTTP server so any client that speaks
-the OpenAI API works out of the box.
+custom `.pt` GPT-2 and LLaMA checkpoints. GGUF models work too via
+`node-llama-cpp` — Llama 3, Qwen2.5, Phi-3.5, and friends. Ships a live terminal
+dashboard (tokens/sec + VRAM in real time) and an OpenAI-compatible HTTP server
+so any client that speaks the OpenAI API works out of the box.
 
 > **Status:** early (`0.1.x`). Both the `.pt` and GGUF paths work; GGUF runs
 > through `node-llama-cpp` v3, which ships prebuilt binaries (Node.js ≥ 20).
@@ -319,7 +319,7 @@ src/
     gguf_loader.js         optional node-llama-cpp backend, same event surface
   bench/benchmark.js       throughput benchmark
   models/registry.js       ~/.zeroshot/config.json
-  commands/                load.js, list.js, bench.js
+  commands/                load.js, serve.js, list.js, bench.js
 python/
   inference.py             GPT-2 decoder + meta-device loader + JSON server
   requirements.txt
